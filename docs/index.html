@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bot Terminal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f0f;
+      color: #e0e0e0;
+      font-family: "Courier New", monospace;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 16px;
+      gap: 12px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    header h1 {
+      font-size: 14px;
+      color: #aaa;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #555;
+      display: inline-block;
+      margin-right: 6px;
+      transition: background 0.3s;
+    }
+    .dot.connected    { background: #25d366; }
+    .dot.disconnected { background: #e74c3c; }
+
+    #status-text { font-size: 12px; color: #888; }
+
+    #connect-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    #connect-bar input {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 6px 10px;
+      width: 320px;
+      outline: none;
+    }
+
+    #connect-bar input:focus { border-color: #25d366; }
+
+    #terminal {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .line-log    { color: #e0e0e0; }
+    .line-status { color: #25d366; }
+    .line-error  { color: #e74c3c; }
+    .line-warn   { color: #f39c12; }
+    .line-info   { color: #3498db; }
+
+    footer { display: flex; gap: 8px; }
+
+    button {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      background: #25d366;
+      color: #000;
+      font-weight: bold;
+    }
+    button:hover { opacity: 0.85; }
+
+    #btn-clear {
+      background: #2a2a2a;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1><span class="dot" id="dot"></span>WhatsApp Bot Terminal</h1>
+    <span id="status-text">Not connected</span>
+  </header>
+
+  <div id="connect-bar">
+    <input id="ws-url" type="text" placeholder="wss://your-server.railway.app" />
+    <button id="btn-connect">Connect</button>
+    <button id="btn-clear">Clear</button>
+  </div>
+
+  <div id="terminal"><span class="line-info">Enter your server URL above and click Connect.\n</span></div>
+
+  <script>
+    const terminal  = document.getElementById("terminal");
+    const dot       = document.getElementById("dot");
+    const statusEl  = document.getElementById("status-text");
+    const urlInput  = document.getElementById("ws-url");
+    const btnConn   = document.getElementById("btn-connect");
+    const btnClear  = document.getElementById("btn-clear");
+
+    const STORAGE_KEY = "bot_ws_url";
+    let ws = null;
+
+    // Restore last URL
+    urlInput.value = localStorage.getItem(STORAGE_KEY) || "";
+
+    function setStatus(state, label) {
+      dot.className = "dot " + state;
+      statusEl.textContent = label;
+    }
+
+    function append(text, cls) {
+      const span = document.createElement("span");
+      span.className = "line-" + cls;
+      span.textContent = text;
+      terminal.appendChild(span);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function classify(text) {
+      if (/error|❌|auth_fail/i.test(text)) return "error";
+      if (/warn|⚠️/i.test(text))            return "warn";
+      if (/✅|authenticated|ready/i.test(text)) return "status";
+      if (/scan|qr|📱/i.test(text))         return "info";
+      return "log";
+    }
+
+    function disconnect() {
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      setStatus("disconnected", "Disconnected");
+      btnConn.textContent = "Connect";
+    }
+
+    function connect() {
+      const url = urlInput.value.trim();
+      if (!url) { append("⚠️  Please enter a server URL.\n", "warn"); return; }
+
+      localStorage.setItem(STORAGE_KEY, url);
+      disconnect();
+
+      setStatus("disconnected", "Connecting...");
+      btnConn.textContent = "Disconnect";
+
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        setStatus("connected", "Connected");
+        append("✅ Connected to " + url + "\n", "status");
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const { text } = JSON.parse(e.data);
+          append(text, classify(text));
+        } catch {
+          append(e.data, "log");
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus("disconnected", "Disconnected");
+        append("⚠️  Connection lost.\n", "warn");
+        btnConn.textContent = "Connect";
+        ws = null;
+      };
+
+      ws.onerror = () => ws.close();
+    }
+
+    btnConn.onclick = () => {
+      if (ws) disconnect();
+      else connect();
+    };
+
+    btnClear.onclick = () => terminal.innerHTML = "";
+
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") connect();
+    });
+  </script>
+
+</body>
+</html>

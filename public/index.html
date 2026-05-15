@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bot Terminal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f0f;
+      color: #e0e0e0;
+      font-family: "Courier New", monospace;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 16px;
+      gap: 12px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 14px;
+      color: #aaa;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #555;
+      display: inline-block;
+      margin-right: 6px;
+      transition: background 0.3s;
+    }
+    .dot.connected { background: #25d366; }
+    .dot.disconnected { background: #e74c3c; }
+
+    #status-text {
+      font-size: 12px;
+      color: #888;
+    }
+
+    #terminal {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    #terminal .line-log    { color: #e0e0e0; }
+    #terminal .line-status { color: #25d366; }
+    #terminal .line-error  { color: #e74c3c; }
+    #terminal .line-warn   { color: #f39c12; }
+    #terminal .line-qr     { color: #3498db; }
+
+    footer {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      background: #25d366;
+      color: #000;
+      font-weight: bold;
+    }
+
+    button:hover { background: #1ebe57; }
+
+    #btn-clear {
+      background: #2a2a2a;
+      color: #aaa;
+    }
+    #btn-clear:hover { background: #333; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>
+      <span class="dot" id="dot"></span>
+      WhatsApp Bot Terminal
+    </h1>
+    <span id="status-text">Connecting...</span>
+  </header>
+
+  <div id="terminal"></div>
+
+  <footer>
+    <button id="btn-clear">Clear</button>
+  </footer>
+
+  <script>
+    const terminal = document.getElementById("terminal");
+    const dot = document.getElementById("dot");
+    const statusText = document.getElementById("status-text");
+
+    function setStatus(connected) {
+      dot.className = "dot " + (connected ? "connected" : "disconnected");
+      statusText.textContent = connected ? "Connected" : "Disconnected";
+    }
+
+    function appendLine(text, cls) {
+      const span = document.createElement("span");
+      span.className = "line-" + cls;
+      span.textContent = text;
+      terminal.appendChild(span);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function classify(text) {
+      if (/error|❌|auth_fail/i.test(text)) return "error";
+      if (/warn|⚠️/i.test(text))            return "warn";
+      if (/✅|authenticated|ready/i.test(text)) return "status";
+      if (/scan|qr/i.test(text))            return "qr";
+      return "log";
+    }
+
+    function connect() {
+      const ws = new WebSocket(`ws://${location.host}`);
+
+      ws.onopen = () => setStatus(true);
+
+      ws.onmessage = (e) => {
+        const { type, text } = JSON.parse(e.data);
+        appendLine(text, type === "status" ? "status" : classify(text));
+      };
+
+      ws.onclose = () => {
+        setStatus(false);
+        appendLine("\n⚠️  Lost connection to server. Reconnecting...\n", "warn");
+        setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => ws.close();
+
+      document.getElementById("btn-clear").onclick = () => {
+        terminal.innerHTML = "";
+      };
+    }
+
+    connect();
+  </script>
+</body>
+</html>
