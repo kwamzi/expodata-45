@@ -136,7 +136,8 @@
     }
 
     function connect() {
-      const ws = new WebSocket(`ws://${location.host}`);
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${proto}//${location.host}`);
 
       ws.onopen = () => setStatus(true);
 
@@ -145,13 +146,16 @@
         appendLine(text, type === "status" ? "status" : classify(text));
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
         setStatus(false);
-        appendLine("\n⚠️  Lost connection to server. Reconnecting...\n", "warn");
+        appendLine("\n⚠️  Lost connection. Code: " + e.code + (e.reason ? " / " + e.reason : "") + ". Reconnecting...\n", "warn");
         setTimeout(connect, 3000);
       };
 
-      ws.onerror = () => ws.close();
+      ws.onerror = () => {
+        appendLine("❌ WebSocket error — see browser console.\n", "error");
+        ws.close();
+      };
 
       document.getElementById("btn-clear").onclick = () => {
         terminal.innerHTML = "";

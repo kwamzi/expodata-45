@@ -190,14 +190,17 @@
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
         setStatus("disconnected", "Disconnected");
-        append("⚠️  Connection lost.\n", "warn");
+        append("⚠️  Connection lost. Code: " + e.code + (e.reason ? " Reason: " + e.reason : "") + "\n", "warn");
         btnConn.textContent = "Connect";
         ws = null;
       };
 
-      ws.onerror = () => ws.close();
+      ws.onerror = (e) => {
+        append("❌ WebSocket error. Check browser console for details.\n", "error");
+        ws.close();
+      };
     }
 
     btnConn.onclick = () => {
