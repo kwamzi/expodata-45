@@ -90,15 +90,7 @@ const server = app.listen(process.env.PORT || 3000, () => {
   log(`Dashboard running at http://localhost:${process.env.PORT || 3000}`);
 });
 
-const wss = new WebSocketServer({
-  server,
-  verifyClient: ({ origin }) => {
-    if (!origin) return true;
-    return origin.startsWith("http://localhost") ||
-           origin.startsWith("https://localhost") ||
-           origin.endsWith(".github.io");
-  },
-});
+const wss = new WebSocketServer({ server });
 
 // ─── Broadcast to all dashboard clients ───────────
 function broadcast(text) {
