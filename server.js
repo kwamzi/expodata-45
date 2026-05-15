@@ -84,6 +84,7 @@ function bundleMenu() {
 
 // ─── Dashboard Server ─────────────────────────────
 const app = express();
+app.get("/health", (req, res) => res.send("OK"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const server = app.listen(process.env.PORT || 3000, () => {
@@ -385,4 +386,11 @@ async function startBot() {
   });
 }
 
-startBot();
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+});
+
+startBot().catch((err) => {
+  console.error("Bot startup failed:", err);
+  setTimeout(startBot, 10000);
+});
