@@ -90,24 +90,26 @@ const server = app.listen(process.env.PORT || 3000, () => {
   log(`Dashboard running at http://localhost:${process.env.PORT || 3000}`);
 });
 
-const wss = new WebSocketServer({
-  server,
-  verifyClient: ({ origin }) => {
-    if (!origin) return true;
-    return origin.startsWith("http://localhost") ||
-           origin.startsWith("https://localhost") ||
-           origin.endsWith(".github.io");
-  },
-});
+const wss = new WebSocketServer({ server });
+
+let recentLogs = [];
 
 // ─── Broadcast to all dashboard clients ───────────
 function broadcast(text) {
   process.stdout.write(text);
+  recentLogs.push(text);
+  if (recentLogs.length > 200) recentLogs.shift();
   const payload = JSON.stringify({ type: "log", text });
   for (const client of wss.clients) {
     if (client.readyState === client.OPEN) client.send(payload);
   }
 }
+
+wss.on("connection", (ws) => {
+  recentLogs.forEach((text) =>
+    ws.send(JSON.stringify({ type: "log", text }))
+  );
+});
 
 function log(...args) { broadcast(args.join(" ") + "\n"); }
 
@@ -130,8 +132,7 @@ async function startBot() {
     if (qr) {
       reconnectDelay = 5000;
       log("\n📱 Scan this QR code with your WhatsApp:\n");
-      // print to terminal only (can't render QR in browser)
-      qrcode.generate(qr, { small: true });
+      qrcode.generate(qr, { small: true }, (qrString) => log(qrString));
     }
 
     if (connection === "open") {
