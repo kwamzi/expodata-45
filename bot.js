@@ -63,12 +63,24 @@ function isValidGhPhone(number) {
     return /^0[2-5]\d{8}$/.test(cleaned);
 }
 
+// ─── Smart Name & Number Parser ───────────────────
+// Accepts any arrangement, with or without comma
+// e.g. "John 0241234567" or "0241234567 John" or "John, 0241234567"
 function parseNameAndNumber(text) {
-    const parts = text.split(",").map(p => p.trim());
-    if (parts.length !== 2) return [null, null];
-    const [name, phone] = parts;
-    if (name.length < 2) return [null, null];
-    if (!isValidGhPhone(phone)) return [null, null];
+    // Remove commas to normalize
+    const cleaned = text.replace(/,/g, " ").trim();
+
+    // Find a phone number anywhere in the text
+    const phoneMatch = cleaned.match(/0[2-5]\d{8}/);
+    if (!phoneMatch) return [null, null];
+
+    const phone = phoneMatch[0];
+
+    // Remove the phone number from the text to get the name
+    const name = cleaned.replace(phone, "").replace(/\s+/g, " ").trim();
+
+    if (!name || name.length < 2) return [null, null];
+
     return [name, phone];
 }
 
@@ -278,8 +290,9 @@ async function startBot() {
                         `✅ You selected *MTN ${bundle.size}* — *${bundle.price}*\n\n` +
                         `━━━━━━━━━━━━━━━━━━\n` +
                         `Please enter your *full name* and the *number to receive the data*\n\n` +
-                        `📝 Format: *Name, 024XXXXXXX*\n` +
-                        `📌 Example: *John Mensah, 0241234567*`
+                        `📝 Just type your name and number in any order:\n` +
+                        `📌 Example: *John Mensah 0241234567*\n` +
+                        `📌 Or: *0241234567 John Mensah*`
                     );
                 } else {
                     await send(`⚠️ Please reply with a number from *1* to *14*.\n\n${bundleMenu()}`);
@@ -290,19 +303,23 @@ async function startBot() {
                 const [name, phone] = parseNameAndNumber(text);
                 if (!name) {
                     await send(
-                        "⚠️ *Invalid format.* Please use:\n\n" +
-                        "📝 Format: *Name, 024XXXXXXX*\n" +
-                        "📌 Example: *John Mensah, 0241234567*\n\n" +
-                        "Make sure the phone number is a valid Ghanaian number."
+                        "⚠️ *Could not find a valid name and number.*\n\n" +
+                        "Please make sure you include:\n" +
+                        "• Your *full name*\n" +
+                        "• A valid *Ghanaian phone number* (e.g. 024XXXXXXX)\n\n" +
+                        "📌 Example: *John Mensah 0241234567*\n" +
+                        "📌 Or: *0241234567 John Mensah*"
                     );
                 } else {
+                    // Always send to admin in a clean format: Name, Phone
+                    const cleanFormat = `${name}, ${phone}`;
                     setCustomerState(allStates, senderNumber, {
                         step: "payment",
                         bundle: state.bundle,
                         price: state.price,
                         name,
                         recipient_number: phone,
-                        name_number: text,
+                        name_number: cleanFormat,
                     });
                     await send(
                         `💳 *Payment Checkout*\n` +
