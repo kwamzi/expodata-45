@@ -66,10 +66,12 @@ function isValidGhPhone(number) {
 }
 
 function parseNameAndNumber(text) {
-  const parts = text.split(",").map(p => p.trim());
-  if (parts.length !== 2) return [null, null];
-  const [name, phone] = parts;
-  if (name.length < 2 || !isValidGhPhone(phone)) return [null, null];
+  const cleaned = text.replace(/,/g, " ").trim();
+  const phoneMatch = cleaned.match(/0[2-5]\d{8}/);
+  if (!phoneMatch) return [null, null];
+  const phone = phoneMatch[0];
+  const name = cleaned.replace(phone, "").replace(/\s+/g, " ").trim();
+  if (!name || name.length < 2) return [null, null];
   return [name, phone];
 }
 
@@ -307,8 +309,9 @@ async function startBot() {
             `✅ You selected *MTN ${bundle.size}* — *${bundle.price}*\n\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
             `Please enter your *full name* and the *number to receive the data*\n\n` +
-            `📝 Format: *Name, 024XXXXXXX*\n` +
-            `📌 Example: *John Mensah, 0241234567*`
+            `📝 Just type your name and number in any order:\n` +
+            `📌 Example: *John Mensah 0241234567*\n` +
+            `📌 Or: *0241234567 John Mensah*`
           );
         } else {
           await send(`⚠️ Please reply with a number from *1* to *14*.\n\n${bundleMenu()}`);
@@ -318,10 +321,12 @@ async function startBot() {
         const [name, phone] = parseNameAndNumber(text);
         if (!name) {
           await send(
-            "⚠️ *Invalid format.* Please use:\n\n" +
-            "📝 Format: *Name, 024XXXXXXX*\n" +
-            "📌 Example: *John Mensah, 0241234567*\n\n" +
-            "Make sure the phone number is a valid Ghanaian number."
+            "⚠️ *Could not find a valid name and number.*\n\n" +
+            "Please make sure you include:\n" +
+            "• Your *full name*\n" +
+            "• A valid *Ghanaian phone number* (e.g. 024XXXXXXX)\n\n" +
+            "📌 Example: *John Mensah 0241234567*\n" +
+            "📌 Or: *0241234567 John Mensah*"
           );
         } else {
           setCustomerState(allStates, senderNumber, {
@@ -330,7 +335,7 @@ async function startBot() {
             price: state.price,
             name,
             recipient_number: phone,
-            name_number: text,
+            name_number: `${name}, ${phone}`,
           });
           await send(
             `💳 *Payment Checkout*\n` +
